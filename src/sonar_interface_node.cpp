@@ -17,20 +17,21 @@ SonarInterfaceNode::SonarInterfaceNode(const rclcpp::NodeOptions & node_options)
   this->serial_.setTimeout(std::numeric_limits<uint32_t>::max(), 5000, 0, 5000, 0);
   this->serial_.open();
 
-  // imu data publisher 
+  // alarm data publisher 
   publisher_x = create_publisher<std_msgs::msg::Float32>("front_back_warning", 1);// 前后方向的最小距离
   publisher_y = create_publisher<std_msgs::msg::Float32>("left_right_warning", 1);// 左右方向的最小距离
 
-  
+  // 在一个访问频次内，依次访问各个传感器的值，
   vector<vector<float>> v_list;
   vector<float> v;
   v.push_back(5.675);
-  for (int i = 0;i < x_num + y_num;i++){
+  for (int i = 0; i < x_num + y_num; i++){
     v_list.push_back(v);
   }
 
   uint8_t payload[3];
   while (rclcpp::ok()){
+    // 先访问前后传感器
     float front_back_length = 5.675;
     for (int i = 0; i < x_num; i++){
       uint8_t recbuff[2];
@@ -38,9 +39,9 @@ SonarInterfaceNode::SonarInterfaceNode(const rclcpp::NodeOptions & node_options)
         payload[0] = 224+i*2;
         payload[1] = 0x02;
         payload[2] = 0xb0;
-        this->serial_.write(payload,sizeof(payload));
-        this->serial_.read(recbuff,sizeof(recbuff));
-        float sonar_range = ((recbuff[0] << 8)|(recbuff[1] & 0xff));
+        this->serial_.write(payload, sizeof(payload));
+        this->serial_.read(recbuff, sizeof(recbuff));
+        float sonar_range = ((recbuff[0] << 8) | (recbuff[1] & 0xff));
         sonar_range = sonar_range / 1000;
         if(v_list[i].size() == smooth_){
           v_list[i].erase(v_list[i].begin());
@@ -52,11 +53,14 @@ SonarInterfaceNode::SonarInterfaceNode(const rclcpp::NodeOptions & node_options)
         }
       }
       catch(serial::IOException& e){
+        //print error msg
       }   
     }
     std_msgs::msg::Float32 warning_data1;
     warning_data1.data = front_back_length;
     publisher_x->publish(warning_data1);
+
+    // 再访问左右传感器
     float left_right_length = 5.675;
     for (int i = x_num; i < x_num + y_num; i++){
       uint8_t recbuff[2];
@@ -64,9 +68,9 @@ SonarInterfaceNode::SonarInterfaceNode(const rclcpp::NodeOptions & node_options)
         payload[0] = 224+i*2;
         payload[1] = 0x02;
         payload[2] = 0xb0;
-        this->serial_.write(payload,sizeof(payload));
-        this->serial_.read(recbuff,sizeof(recbuff));
-        float sonar_range = ((recbuff[0] << 8)|(recbuff[1] & 0xff));
+        this->serial_.write(payload, sizeof(payload));
+        this->serial_.read(recbuff, sizeof(recbuff));
+        float sonar_range = ((recbuff[0] << 8) | (recbuff[1] & 0xff));
         sonar_range = sonar_range / 1000;
         if(v_list[i].size() == smooth_){
           v_list[i].erase(v_list[i].begin());
@@ -78,6 +82,7 @@ SonarInterfaceNode::SonarInterfaceNode(const rclcpp::NodeOptions & node_options)
         }
       }
       catch(serial::IOException& e){
+        //print error msg
       }   
     } 
     std_msgs::msg::Float32 warning_data2;
@@ -87,7 +92,5 @@ SonarInterfaceNode::SonarInterfaceNode(const rclcpp::NodeOptions & node_options)
   }
   this->serial_.close();
 }
-
-
 #include <rclcpp_components/register_node_macro.hpp>
 RCLCPP_COMPONENTS_REGISTER_NODE(SonarInterfaceNode)
